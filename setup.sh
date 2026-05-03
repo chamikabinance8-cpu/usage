@@ -1,41 +1,59 @@
 #!/bin/bash
 
+# ඔබේ Dashboard IP එක මෙතන දාන්න
+MAIN_SERVER_IP="18.143.132.72"
+BASE_URL="http://$MAIN_SERVER_IP:3000"
+
 echo "==================================="
-echo "     Live VPS Monitor Auto Setup   "
+echo "   VPS MONITOR - AUTO TOKEN      "
 echo "==================================="
-echo "1. Install Main Dashboard (Server)"
-echo "2. Install Monitor Agent (For other VPS)"
+echo "1. Setup Dashboard (Admin Only)"
+echo "2. Setup Agent (Add this VPS)"
 echo "==================================="
-read -p "ඔබේ තේරීම (1 හෝ 2 ඇතුලත් කරන්න): " choice
+read -p "Option: " choice
 
 if [ "$choice" == "1" ]; then
-    echo "Installing Main Server dependencies..."
     sudo apt update && sudo apt install -y nodejs npm
-    npm install express socket.io
+    npm install express socket.io crypto
     sudo npm install -g pm2
-    
-    echo "Starting Dashboard with PM2..."
-    pm2 start server.js --name "vps-dashboard"
-    pm2 save
-    echo "✅ Dashboard එක සාර්ථකව Run විය! http://YOUR_VPS_IP:3000 වෙත යන්න."
+    pm2 start server.js --name "vps-monitor"
+    echo "✅ Dashboard is live at $BASE_URL"
 
 elif [ "$choice" == "2" ]; then
-    echo "Installing Python dependencies..."
-    sudo apt update && sudo apt install -y python3 python3-pip
-    pip3 install psutil requests
+    sudo apt update && sudo apt install -y python3 python3-pip curl
+    pip3 install psutil requests --break-system-packages 2>/dev/null || pip3 install psutil requests
 
-    echo ""
-    read -p "Main Dashboard එක Run වෙන Server IP එක (උදා: http://192.168.1.1:3000/update): " server_url
-    read -p "මෙම VPS එකට ලබාදෙන නම (උදා: Bot-Server-1): " vps_id
+    echo "-----------------------------------"
+    read -p "Do you already have a token? (y/n): " has_token
 
-    # ස්වයංක්‍රීයව Python file එකේ දත්ත වෙනස් කිරීම
-    sed -i "s|SERVER_URL = \"REPLACE_URL\"|SERVER_URL = \"$server_url\"|g" agent.py
-    sed -i "s|VPS_ID = \"REPLACE_ID\"|VPS_ID = \"$vps_id\"|g" agent.py
+    if [ "$has_token" == "n" ] || [ "$has_token" == "N" ]; then
+        echo "Generating new token from server..."
+        # සර්වර් එකෙන් අලුත් Token එකක් ලබා ගැනීම
+        USER_TOKEN=$(curl -s "$BASE_URL/register" | python3 -c "import sys, json; print(json.load(sys.stdin)['token'])")
+        echo "-----------------------------------"
+        echo "🔥 YOUR NEW TOKEN: $USER_TOKEN"
+        echo "⚠️  Keep this token safe to view your dashboard!"
+        echo "-----------------------------------"
+    else
+        read -p "Enter your existing token: " USER_TOKEN
+    fi
 
-    echo "Starting Agent in background..."
+    read -p "Enter a name for this VPS (e.g. My-Bot): " vps_id
+
+    # agent.py නිර්මාණය
+    cat <<EOF > agent.py
+import psutil, requests, time
+def send():
+    while True:
+        try:
+            data = {"token": "$USER_TOKEN", "id": "$vps_id", "cpu": psutil.cpu_percent(interval=1), "ram": psutil.virtual_memory().percent}
+            requests.post("$BASE_URL/update", json=data, timeout=5)
+        except: pass
+        time.sleep(2)
+if __name__ == "__main__": send()
+EOF
+
+    pkill -f agent.py
     nohup python3 agent.py > agent.log 2>&1 &
-    
-    echo "✅ Agent සාර්ථකව Run විය! දැන් Dashboard එක පරීක්ෂා කරන්න."
-else
-    echo "❌ වැරදි තේරීමක්!"
+    echo "✅ Agent is running! Use token $USER_TOKEN to login."
 fi
