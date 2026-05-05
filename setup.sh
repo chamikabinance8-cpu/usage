@@ -1,34 +1,28 @@
 #!/bin/bash
+clear
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "    SaaS VPS MONITOR PRO - INSTALLER"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-echo "==================================="
-echo "   VPS ALL-IN-ONE MONITOR SETUP    "
-echo "==================================="
+# User Credentials ලබා ගැනීම
+read -p "Enter Dashboard Username: " uname
+read -p "Enter Dashboard Password: " upass
 
-# 1. Update කර Node.js සහ Git Install කිරීම
-echo "Updating packages and installing Node.js..."
-sudo apt update -y
-sudo apt install -y nodejs npm git
+# Config File එක සෑදීම
+echo "{\"username\":\"$uname\", \"password\":\"$upass\"}" > config.json
 
-# 2. අවශ්‍ය Packages Install කිරීම
-echo "Installing dependencies..."
-npm install express socket.io os-utils
+# Dependencies ස්ථාපනය
+echo "Installing Node.js & Dependencies..."
+sudo apt update && sudo apt install -y nodejs npm
+npm install express socket.io os-utils axios
 
-# 3. PM2 ස්ථාපනය කිරීම
-echo "Installing PM2..."
+# PM2 මගින් Run කිරීම
 sudo npm install -g pm2
-
-# 4. server.js ගොනුව PM2 හරහා ධාවනය කිරීම
-echo "Starting application with PM2..."
 pm2 start server.js --name "vps-monitor"
 pm2 save
-pm2 startup
 
-# 5. UFW Firewall එකෙන් Port 3000 විවෘත කිරීම
-echo "Configuring firewall (UFW)..."
-sudo ufw allow 3000/tcp
-sudo ufw reload
-
-echo "==================================="
-echo "✅ සියල්ල සාර්ථකව ක්‍රියාත්මකයි!"
-echo "👉 දැන් ඔබට http://YOUR_VPS_IP:3000 හරහා Dashboard එකට පිවිසිය හැක."
-echo "==================================="
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ SUCCESS! Access your dashboard at:"
+echo "http://$(curl -s ifconfig.me):3000"
+echo "Username: $uname"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
