@@ -1,29 +1,11 @@
-// server.js (Client Node)
 const express = require('express');
 const app = express();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
 const os = require('os');
 const psutil = require('os-utils');
-const fs = require('fs');
 const axios = require('axios');
 const { execSync } = require('child_process');
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-const MASTER_IP = "18.143.132.72"; // ඔබේ Main VPS IP එක මෙතන දාන්න
-const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
-
-// UI එක Master ගෙන් ලබා ගැනීම
-app.get('/', async (req, res) => {
-    try {
-        const response = await axios.get(`http://${MASTER_IP}:4000/get-ui`);
-        res.send(response.data);
-    } catch (e) {
-        res.send("<h1>Connecting to Master... Please Refresh</h1>");
-    }
-});
+const MASTER_URL = "http://18.143.132.72:4000"; // ඔබේ Master IP එක
 
 function getDiskInfo() {
     try {
@@ -34,7 +16,6 @@ function getDiskInfo() {
     }
 }
 
-const ioObj = require('socket.io')(http);
 setInterval(() => {
     psutil.cpuUsage((v) => {
         const disk = getDiskInfo();
@@ -52,8 +33,19 @@ setInterval(() => {
             uptime: (os.uptime() / 3600).toFixed(1) + ' Hours',
             loadAvg: os.loadavg()[0].toFixed(2)
         };
-        ioObj.emit('usageUpdate', data);
-    });
-}, 2000);
 
-http.listen(3000, () => console.log('Client Running on Port 3000'));
+        // දත්ත Master Server එකට යැවීම
+        axios.post(`${MASTER_URL}/update-data`, data)
+            .catch(err => console.log("Master Server Not responding..."));
+    });
+}, 3000);
+
+// Client Web Server Port 3000 (පරිශීලකයන්ට ලොග් වීමට)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/', (req, res) => {
+    res.redirect(`${MASTER_URL}/get-ui`);
+});
+
+app.listen(3000, () => console.log('Client Node Active on 3000'));
